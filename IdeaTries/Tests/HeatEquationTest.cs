@@ -1,3 +1,7 @@
+using AmgSharp.Logics;
+
+namespace AmgSharp.Tests;
+
 public class HeatEquationTest
 {
     public static void Run()
@@ -8,7 +12,7 @@ public class HeatEquationTest
             SparseMatrix A = SparseMatrix.FromMatrixMarket("heat16x16.mtx");
             double[] b = GenerateRightHandSide(16);
 
-            var solver = new AMGSolver(A);
+            var solver = new AMGSolver(A, maxLevels: 10);
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             double[] x = solver.Solve(b, maxIterations: 200, tolerance: 1e-8);
             Console.WriteLine($"Solution completed in {stopwatch.Elapsed.TotalSeconds} seconds.");
@@ -17,8 +21,8 @@ public class HeatEquationTest
             for (int i = 0; i < Math.Min(5, x.Length); i++)
                 Console.WriteLine($"x[{i}] = {x[i]}");
 
-            double[] r = Subtract(b, A.Multiply(x));
-            Console.WriteLine($"Residual norm: {Norm(r)}");
+            double[] r = AMGSolver.Subtract(b, A.Multiply(x));
+            Console.WriteLine($"Residual norm: {AMGSolver.Norm(r)}");
         }
         catch (Exception ex)
         {
@@ -82,7 +86,4 @@ public class HeatEquationTest
         }
         return b;
     }
-
-    static double[] Subtract(double[] a, double[] b) => a.Zip(b, (x, y) => x - y).ToArray();
-    static double Norm(double[] v) => Math.Sqrt(v.Sum(x => x * x));
 }

@@ -1,5 +1,4 @@
-using System;
-using System.Collections.Generic;
+namespace AmgSharp.Logics;
 
 public class SimpleAMGLevel : IAMGLevel
 {
@@ -65,7 +64,7 @@ public class SimpleAMGLevel : IAMGLevel
         }
     }
 
-    private SparseMatrix? Transpose(SparseMatrix m)
+    private static SparseMatrix? Transpose(SparseMatrix m)
     {
         try
         {
@@ -100,7 +99,7 @@ public class SimpleAMGLevel : IAMGLevel
         }
     }
 
-    private SparseMatrix? ComputeRAP(SparseMatrix a, SparseMatrix r, SparseMatrix p)
+    private static SparseMatrix? ComputeRAP(SparseMatrix a, SparseMatrix r, SparseMatrix p)
     {
         try
         {
@@ -143,7 +142,7 @@ public class SimpleAMGLevel : IAMGLevel
         }
     }
 
-    private Dictionary<int, double> ExtractRow(SparseMatrix m, int row)
+    private static Dictionary<int, double> ExtractRow(SparseMatrix m, int row)
     {
         var result = new Dictionary<int, double>();
         for (int j = m.RowPointers[row]; j < m.RowPointers[row + 1]; j++)

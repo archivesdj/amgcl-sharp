@@ -1,6 +1,4 @@
-using System;
-using System.IO;
-using System.Collections.Generic;
+namespace AmgSharp.Logics;
 
 public class SparseMatrix
 {
@@ -17,6 +15,7 @@ public class SparseMatrix
         Values = values;
         ColIndices = colIndices;
         RowPointers = rowPointers;
+        //Console.WriteLine($"SparseMatrix created: Values = [{string.Join(", ", Values)}], ColIndices = [{string.Join(", ", ColIndices)}], RowPointers = [{string.Join(", ", RowPointers)}]");
     }
 
     // Matrix-vector multiplication

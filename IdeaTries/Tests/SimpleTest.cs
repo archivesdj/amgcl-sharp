@@ -1,3 +1,7 @@
+using AmgSharp.Logics;
+
+namespace AmgSharp.Tests;
+
 public class SimpleTest {
     public static void Run(bool usingMatrixMarket = true)
     {

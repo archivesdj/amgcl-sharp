@@ -1,3 +1,5 @@
+namespace AmgSharp.Logics;
+
 public interface IAMGLevel
 {
     SparseMatrix A { get; }

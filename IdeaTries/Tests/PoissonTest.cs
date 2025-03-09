@@ -1,3 +1,7 @@
+using AmgSharp.Logics;
+
+namespace AmgSharp.Tests;
+
 public class PoissonTest {
     public static void Run()
     {
@@ -8,7 +12,7 @@ public class PoissonTest {
             double[] b = new double[A.Rows];
             Array.Fill(b, 1.0);
 
-            var solver = new AMGSolver(A);
+            var solver = new AMGSolver(A, maxLevels: 10);
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             double[] x = solver.Solve(b);
             Console.WriteLine($"Solution completed in {stopwatch.Elapsed.TotalSeconds} seconds.");
@@ -17,8 +21,8 @@ public class PoissonTest {
             for (int i = 0; i < Math.Min(5, x.Length); i++)
                 Console.WriteLine($"x[{i}] = {x[i]}");
 
-            double[] r = Subtract(b, A.Multiply(x));
-            Console.WriteLine($"Residual norm: {Norm(r)}");
+            double[] r = AMGSolver.Subtract(b, A.Multiply(x));
+            Console.WriteLine($"Residual norm: {AMGSolver.Norm(r)}");
         }
         catch (Exception ex)
         {
@@ -47,7 +51,4 @@ public class PoissonTest {
             }
         }
     }
-
-    static double[] Subtract(double[] a, double[] b) => a.Zip(b, (x, y) => x - y).ToArray();
-    static double Norm(double[] v) => Math.Sqrt(v.Sum(x => x * x));
 }

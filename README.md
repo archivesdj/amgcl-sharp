@@ -35,7 +35,7 @@ typedef amgcl::make_solver<
 > Solver;
 ```
 
-AMGCL은 C++로 작성된 헤더 전용 라이브러리이므로, C#에서 사용하기 위해서는 네이티브 C++코드를 호출하여야 합니다.
+AMGCL은 C++로 작성된 헤더 전용 라이브러리이므로, C#에서 사용하기 위해서는 네이티브 C++코드를 호출하여야 합니다. 관련하여 간단한 구현 코드는 [Amgcl.Net](https://github.com/archivesdj/Amgcl.Net)를 참고하시기 바랍니다.
 
 ## C#으로 유사 기능 구현
 
@@ -48,5 +48,4 @@ AMG(Algebraic Multigrid) 알고리즘을 C#으로 직접 구현하는 것은 상
   - Smoothed Aggregation 기반 coarsening(굵은 격자 생성).
   - Relaxation(SOR 또는 Jacobi).
   - 다중 격자 계층 구축 및 V-cycle.
-
-그리고 추후에 병렬처리 알고리즘을 추가해 보도록 하겠습니다.
+  - `ILGPU`를 이용하여 병렬처리 알고리즘 추가
