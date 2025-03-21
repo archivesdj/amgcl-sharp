@@ -4,26 +4,36 @@ namespace Amgcl.Coarsening;
 
 public class RugeStubenAMGLevel : IAMGLevel
 {
+    private readonly int _minGridSize;
+
     public SparseMatrixCSR A { get; private set; }
-    public SparseMatrixCSR? R { get; private set; } = null;
-    public SparseMatrixCSR? P { get; private set; } = null;
+    public SparseMatrixCSR? R { get; private set; }
+    public SparseMatrixCSR? P { get; private set; }
     public double[] Residual { get; private set; }
     public double[] Correction { get; private set; }
 
-    // Constructor: Initialize level with matrix
-    public RugeStubenAMGLevel(SparseMatrixCSR matrix)
+    public RugeStubenAMGLevel(SparseMatrixCSR matrix, int minGridSize)
     {
         A = matrix;
         Residual = new double[matrix.Rows];
         Correction = new double[matrix.Rows];
+        _minGridSize = minGridSize;
     }
 
-    // Coarsen: Implement Ruge-Stuben coarsening with direct interpolation
     public IAMGLevel? Coarsen()
     {
-        int n = A.Rows;
+        var (coarseIndices, coarseSize) = SplitCoarseFinePoints();
+        if (coarseSize < _minGridSize || coarseSize == 0 || coarseSize == A.Rows) return null; // Check minimum grid size
 
-        // Step 1: Identify strong connections and split into C/F sets
+        P = CreateProlongationOperator(coarseIndices, coarseSize);
+        R = CreateRestrictionOperator(P);
+        SparseMatrixCSR A_c = ComputeCoarseMatrix();
+        return CreateCoarseLevel(A_c);
+    }
+
+    private (List<int> coarseIndices, int coarseSize) SplitCoarseFinePoints()
+    {
+        int n = A.Rows;
         bool[] isCoarse = new bool[n];
         List<int> coarseIndices = new List<int>();
         HashSet<int> fineIndices = new HashSet<int>(Enumerable.Range(0, n));
@@ -34,10 +44,8 @@ public class RugeStubenAMGLevel : IAMGLevel
 
             double maxOffDiag = 0;
             for (int j = A.RowPointers[i]; j < A.RowPointers[i + 1]; j++)
-            {
                 if (A.ColIndices[j] != i)
                     maxOffDiag = Math.Max(maxOffDiag, Math.Abs(A.Values[j]));
-            }
             double threshold = 0.25 * maxOffDiag;
 
             isCoarse[i] = true;
@@ -48,24 +56,24 @@ public class RugeStubenAMGLevel : IAMGLevel
             {
                 int col = A.ColIndices[j];
                 if (col != i && Math.Abs(A.Values[j]) > threshold && fineIndices.Contains(col))
-                {
                     fineIndices.Remove(col);
-                }
             }
         }
 
-        int nCoarse = coarseIndices.Count;
-        if (nCoarse == 0 || nCoarse == n) return null;
+        return (coarseIndices, coarseIndices.Count);
+    }
 
-        // Step 2: Build prolongation operator P (direct interpolation)
-        List<double> pValues = new List<double>();
-        List<int> pColIndices = new List<int>();
-        List<int> pRowPointers = new List<int> { 0 };
+    private SparseMatrixCSR CreateProlongationOperator(List<int> coarseIndices, int coarseSize)
+    {
+        int n = A.Rows;
+        var pValues = new List<double>();
+        var pColIndices = new List<int>();
+        var pRowPointers = new List<int> { 0 };
         Dictionary<int, int> coarseMap = coarseIndices.Select((c, idx) => (c, idx)).ToDictionary(x => x.c, x => x.idx);
 
         for (int i = 0; i < n; i++)
         {
-            if (isCoarse[i])
+            if (coarseIndices.Contains(i))
             {
                 pValues.Add(1.0);
                 pColIndices.Add(coarseMap[i]);
@@ -77,7 +85,7 @@ public class RugeStubenAMGLevel : IAMGLevel
                 for (int j = A.RowPointers[i]; j < A.RowPointers[i + 1]; j++)
                 {
                     int col = A.ColIndices[j];
-                    if (isCoarse[col] && col != i)
+                    if (coarseIndices.Contains(col) && col != i)
                     {
                         double weight = -A.Values[j];
                         weights[coarseMap[col]] = weight;
@@ -100,16 +108,23 @@ public class RugeStubenAMGLevel : IAMGLevel
             pRowPointers.Add(pValues.Count);
         }
 
-        P = new SparseMatrixCSR(n, nCoarse, pValues.ToArray(), pColIndices.ToArray(), pRowPointers.ToArray());
-        R = P.Transpose();
+        return new SparseMatrixCSR(n, coarseSize, pValues.ToArray(), pColIndices.ToArray(), pRowPointers.ToArray());
+    }
 
-        // Step 3: Compute coarse matrix A_c = R * A * P
-        SparseMatrixCSR ACoarse = R.MultiplyMatrix(A.MultiplyMatrix(P));
+    private SparseMatrixCSR CreateRestrictionOperator(SparseMatrixCSR prolongation)
+    {
+        return prolongation.Transpose();
+    }
 
-        // Create coarse level
-        RugeStubenAMGLevel coarseLevel = new RugeStubenAMGLevel(ACoarse);
-        coarseLevel.R = R;
-        coarseLevel.P = P;
+    private SparseMatrixCSR ComputeCoarseMatrix()
+    {
+        SparseMatrixCSR temp = A.MultiplyMatrix(P!);
+        return R!.MultiplyMatrix(temp);
+    }
+
+    private IAMGLevel CreateCoarseLevel(SparseMatrixCSR A_c)
+    {
+        RugeStubenAMGLevel coarseLevel = new RugeStubenAMGLevel(A_c, _minGridSize);
         return coarseLevel;
     }
 }

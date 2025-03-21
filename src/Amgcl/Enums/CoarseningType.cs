@@ -3,5 +3,7 @@ namespace Amgcl.Enums;
 public enum CoarseningType
 {
     Vanilla,
-    RugeStuben
+    RugeStuben,
+    Aggregation,
+    SmoothedAggregation
 }
