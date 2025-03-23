@@ -1,5 +1,6 @@
 using Amgcl.Matrix;
 using Amgcl.Solver;
+using Amgcl;
 
 namespace AmgclXUnitTest.Solver;
 

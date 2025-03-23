@@ -198,8 +198,8 @@ public class SparseMatrix
         int[] rowPointers = new int[_rows + 1];
 
         var sortedEntries = _values.OrderBy(kvp => kvp.Key.Item1)
-                                  .ThenBy(kvp => kvp.Key.Item2)
-                                  .ToList();
+                                   .ThenBy(kvp => kvp.Key.Item2)
+                                   .ToList();
 
         int index = 0;
         for (int row = 0; row < _rows; row++)

@@ -4,7 +4,7 @@ namespace Amgcl.Coarsening;
 
 public class AggregationAMGLevel : IAMGLevel
 {
-     private readonly int _minGridSize;
+    private readonly int _minGridSize;
 
     public SparseMatrixCSR A { get; private set; }
     public SparseMatrixCSR? R { get; private set; }

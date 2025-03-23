@@ -7,63 +7,63 @@ namespace Amgcl.Solver;
 
 public class AMGSolver : ISolver
 {
-    private List<IAMGLevel> levels;         // List of multigrid levels
-    private SparseMatrixCSR matrix;         // Original matrix
-    private List<ISolver> smoothers;        // List of smoothers for each level
-    private ISolver? coarseSolver;           // Direct solver for the coarsest level
+    private readonly List<IAMGLevel> _levels;         // List of multigrid levels
+    private readonly SparseMatrixCSR _A;         // Original matrix
+    private readonly List<ISolver> _smoothers;        // List of smoothers for each level
+    private ISolver? _coarseSolver;           // Direct solver for the coarsest level
 
     // Configuration properties
-    public CoarseningType CoarseningType { get; set; } = CoarseningType.RugeStuben;
-    public int MaxLevels { get; set; } = 5;
+    public CoarseningType CoarseningType { get; set; } = CoarseningType.SmoothedAggregation;
+    public int MaxLevels { get; set; } = 10;
     public SolverType SmootherType { get; set; } = SolverType.CG;
     public int PreSmootherIterations { get; set; } = 2;
     public int PostSmootherIterations { get; set; } = 2;
-    public int MinGridSize { get; set; } = 4;
+    public int MinGridSize { get; set; } = 8;
 
     // Constructor: Initialize with matrix only
-    public AMGSolver(SparseMatrixCSR matrix)
+    public AMGSolver(SparseMatrixCSR A)
     {
-        this.matrix = matrix ?? throw new ArgumentNullException(nameof(matrix));
-        levels = new List<IAMGLevel>();
-        smoothers = new List<ISolver>();    // Initialize smoother list
+        this._A = A ?? throw new ArgumentNullException(nameof(A));
+        _levels = new List<IAMGLevel>();
+        _smoothers = new List<ISolver>();    // Initialize smoother list
     }
 
     // Build the multigrid hierarchy
     public void BuildHierarchy()
     {
-        levels.Clear();
-        smoothers.Clear();
+        _levels.Clear();
+        _smoothers.Clear();
 
         // Create the finest level
-        IAMGLevel fineLevel = AMGLevelFactory.CreateLevel(CoarseningType, matrix, MinGridSize);
-        levels.Add(fineLevel);
-        smoothers.Add(SolverFactory.CreateSolver(SmootherType, fineLevel.A));
+        IAMGLevel fineLevel = AMGLevelFactory.CreateLevel(CoarseningType, _A, MinGridSize);
+        _levels.Add(fineLevel);
+        _smoothers.Add(SolverFactory.CreateSolver(SmootherType, fineLevel.A));
 
         // Build hierarchy recursively
-        IAMGLevel current = levels[0];
-        while (levels.Count < MaxLevels)
+        IAMGLevel current = _levels[0];
+        while (_levels.Count < MaxLevels)
         {
             var coarse = current.Coarsen();
             if (coarse == null) break;
-            levels.Add(coarse);
-            smoothers.Add(SolverFactory.CreateSolver(SmootherType, coarse.A));
+            _levels.Add(coarse);
+            _smoothers.Add(SolverFactory.CreateSolver(SmootherType, coarse.A));
             current = coarse;
         }
 
         // Initialize coarseSolver for the coarsest level
-        if (levels.Count > 0)
+        if (_levels.Count > 0)
         {
-            smoothers.RemoveAt(smoothers.Count - 1); // Remove smoother for the coarsest level
-            coarseSolver = SolverFactory.CreateSolver(SolverType.LUDirect, levels[levels.Count - 1].A);
+            _smoothers.RemoveAt(_smoothers.Count - 1); // Remove smoother for the coarsest level
+            _coarseSolver = SolverFactory.CreateSolver(SolverType.LUDirect, _levels[_levels.Count - 1].A);
         }
     
         // Print hierarchy information
         Console.WriteLine("===================================");
         Console.WriteLine($"Coarsening Method: {CoarseningType}");
-        Console.WriteLine($"AMG hierarchy with {levels.Count} levels:");
-        for (int i = 0; i < levels.Count; i++)
+        Console.WriteLine($"AMG hierarchy with {_levels.Count} levels:");
+        for (int i = 0; i < _levels.Count; i++)
         {
-            IAMGLevel level = levels[i];
+            IAMGLevel level = _levels[i];
             Console.WriteLine($"Level {i}: {level.A.Rows}x{level.A.Cols}, {level.A.NonZeroCount} non-zeros");
         }
     }
@@ -71,14 +71,14 @@ public class AMGSolver : ISolver
     // V-Cycle: Recursive multigrid cycle
     private void VCycle(int level, double[] b, double[] x, int preSmooth, int postSmooth, double tolerance)
     {
-        if (level == levels.Count - 1) // Coarsest level
+        if (level == _levels.Count - 1) // Coarsest level
         {
-            coarseSolver!.Relax(b, x, 1, tolerance); // Direct solve
+            _coarseSolver!.Relax(b, x, 1, tolerance); // Direct solve
             return;
         }
 
-        IAMGLevel current = levels[level];
-        ISolver currentSmoother = smoothers[level]; // Use smoother for current level
+        IAMGLevel current = _levels[level];
+        ISolver currentSmoother = _smoothers[level]; // Use smoother for current level
 
         // Pre-smoothing
         currentSmoother.Relax(b, x, preSmooth, tolerance);
@@ -89,7 +89,7 @@ public class AMGSolver : ISolver
             current.Residual[i] = b[i] - current.Residual[i];
 
         // Restrict residual to coarse level
-        IAMGLevel coarse = levels[level + 1];
+        IAMGLevel coarse = _levels[level + 1];
         current.R!.Multiply(current.Residual, coarse.Residual);
        
         // Solve on coarse level recursively
@@ -110,10 +110,10 @@ public class AMGSolver : ISolver
     // Relax: Perform AMG iterations (V-Cycles)
     public void Relax(double[] b, double[] x, int maxIterations, double tolerance)
     {
-        if (coarseSolver == null || levels.Count == 0)
+        if (_coarseSolver == null || _levels.Count == 0)
             throw new InvalidOperationException("Solver hierarchy not built.");
 
-        if (b.Length != matrix.Rows || x.Length != matrix.Rows)
+        if (b.Length != _A.Rows || x.Length != _A.Rows)
             throw new ArgumentException("Vector length does not match matrix dimensions.");
 
         for (int iter = 0; iter < maxIterations; iter++)
@@ -138,10 +138,7 @@ public class AMGSolver : ISolver
     // Solve: Initialize x and call Relax to compute solution
     public double[] Solve(double[] b, int maxIterations, double tolerance)
     {
-        if (b.Length != matrix.Rows)
-            throw new ArgumentException("Length of b does not match matrix rows.");
-
-        double[] x = new double[matrix.Rows];
+        double[] x = new double[b.Length];
         Relax(b, x, maxIterations, tolerance);
         return x;
     }

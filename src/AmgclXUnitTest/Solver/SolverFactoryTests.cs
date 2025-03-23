@@ -2,6 +2,7 @@ using Amgcl.Matrix;
 using Amgcl.Solver;
 using Amgcl.Helpers;
 using Amgcl.Enums;
+using Amgcl;
 
 namespace AmgclXUnitTest.Solver;
 

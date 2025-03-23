@@ -4,43 +4,43 @@ namespace Amgcl.Solver;
 
 public class DampedJacobiSolver : ISolver
 {
-    private readonly SparseMatrixCSR matrix;
+    private readonly SparseMatrixCSR _A;
    
-    private readonly double[] diagonal;
+    private readonly double[] _diagonal;
 
-    private double omega = 1.0;
+    private double _omega = 1.0;
     public double Omega 
     {
-        get { return omega; }
+        get { return _omega; }
         set {
             if (value <= 0 || value > 1)
                 throw new ArgumentException("Omega must be between 0 and 1");
-            omega = value;
+            _omega = value;
         }
     }
 
-    public DampedJacobiSolver(SparseMatrixCSR matrix)
+    public DampedJacobiSolver(SparseMatrixCSR A)
     {
-        this.matrix = matrix ?? throw new ArgumentNullException(nameof(matrix));
-        this.diagonal = matrix.GetDiagonal();
-        if (diagonal.Any(d => d == 0))
+        this._A = A ?? throw new ArgumentNullException(nameof(A));
+        this._diagonal = A.GetDiagonal();
+        if (_diagonal.Any(d => d == 0))
             throw new InvalidOperationException("Matrix must have non-zero diagonal elements");
     }
 
     public void Relax(double[] b, double[] x, int maxIterations, double tolerance)
     {
-        if (b.Length != matrix.Rows || x.Length != matrix.Rows)
+        if (b.Length != _A.Rows || x.Length != _A.Rows)
             throw new ArgumentException("Vector length mismatch");
 
-        double[] temp = new double[matrix.Rows];
+        double[] temp = new double[_A.Rows];
         for (int iter = 0; iter < maxIterations; iter++)
         {
-            matrix.Multiply(x, temp); // temp = Ax
+            _A.Multiply(x, temp); // temp = Ax
             double norm = 0;
-            for (int i = 0; i < matrix.Rows; i++)
+            for (int i = 0; i < _A.Rows; i++)
             {
                 double residual = b[i] - temp[i]; // r = b - Ax
-                double delta = Omega * (residual / diagonal[i]);
+                double delta = Omega * (residual / _diagonal[i]);
                 double newX = x[i] + delta;
                 norm += delta * delta;
                 x[i] = newX;
@@ -49,12 +49,10 @@ public class DampedJacobiSolver : ISolver
         }
     }
 
+    // Solve: Initialize x and call Relax to compute solution
     public double[] Solve(double[] b, int maxIterations, double tolerance)
     {
-        if (b.Length != matrix.Rows)
-            throw new ArgumentException("Vector length must match matrix rows");
-
-        double[] x = new double[matrix.Rows];
+        double[] x = new double[b.Length];
         Relax(b, x, maxIterations, tolerance);
         return x;
     }
