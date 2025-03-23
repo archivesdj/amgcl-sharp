@@ -4,24 +4,24 @@ namespace Amgcl.Solver;
 
 public class LUDirectSolver : ISolver
 {
-    private readonly SparseMatrixCSR matrix;
-    private double[,] L; // Lower triangular matrix
-    private double[,] U; // Upper triangular matrix
+    private readonly SparseMatrixCSR _A;
+    private double[,] _L; // Lower triangular matrix
+    private double[,] _U; // Upper triangular matrix
 
     // Constructor: Initialize with sparse matrix and perform LU decomposition
-    public LUDirectSolver(SparseMatrixCSR matrix)
+    public LUDirectSolver(SparseMatrixCSR A)
     {
-        this.matrix = matrix ?? throw new ArgumentNullException(nameof(matrix));
-        if (matrix.Rows != matrix.Cols)
+        this._A = A ?? throw new ArgumentNullException(nameof(A));
+        if (A.Rows != A.Cols)
             throw new InvalidOperationException("Matrix must be square for LU decomposition.");
 
-        (L, U) = DecomposeLU();
+        (_L, _U) = DecomposeLU();
     }
 
     // Perform LU decomposition
     private (double[,] L, double[,] U) DecomposeLU()
     {
-        double[,] A = matrix.ToDense();
+        double[,] A = _A.ToDense();
         int n = A.GetLength(0);
         var L = new double[n, n];
         var U = new double[n, n];
@@ -64,7 +64,7 @@ public class LUDirectSolver : ISolver
         {
             y[i] = b[i];
             for (int j = 0; j < i; j++)
-                y[i] -= L[i, j] * y[j];
+                y[i] -= _L[i, j] * y[j];
             // L[i, i] = 1, so no division needed
         }
         return y;
@@ -79,8 +79,8 @@ public class LUDirectSolver : ISolver
         {
             x[i] = y[i];
             for (int j = i + 1; j < n; j++)
-                x[i] -= U[i, j] * x[j];
-            x[i] /= U[i, i];
+                x[i] -= _U[i, j] * x[j];
+            x[i] /= _U[i, i];
         }
         return x;
     }
@@ -88,7 +88,7 @@ public class LUDirectSolver : ISolver
     // Relax: Compute solution directly and update x
     public void Relax(double[] b, double[] x, int maxIterations, double tolerance)
     {
-        if (b.Length != matrix.Rows || x.Length != matrix.Rows)
+        if (b.Length != _A.Rows || x.Length != _A.Rows)
             throw new ArgumentException("Vector length does not match matrix dimensions.");
 
         double[] y = ForwardSubstitution(b);
@@ -99,10 +99,7 @@ public class LUDirectSolver : ISolver
     // Solve: Initialize x and call Relax to compute solution
     public double[] Solve(double[] b, int maxIterations, double tolerance)
     {
-        if (b.Length != matrix.Rows)
-            throw new ArgumentException("Length of b does not match matrix rows.");
-
-        double[] x = new double[matrix.Rows];
+        double[] x = new double[b.Length];
         Relax(b, x, maxIterations, tolerance);
         return x;
     }

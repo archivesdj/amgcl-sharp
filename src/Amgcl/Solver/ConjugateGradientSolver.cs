@@ -4,26 +4,26 @@ namespace Amgcl.Solver;
 
 public class ConjugateGradientSolver : ISolver
 {
-    private readonly SparseMatrixCSR matrix;
+    private readonly SparseMatrixCSR _A;
 
-    public ConjugateGradientSolver(SparseMatrixCSR matrix)
+    public ConjugateGradientSolver(SparseMatrixCSR A)
     {
-        this.matrix = matrix ?? throw new ArgumentNullException(nameof(matrix));
-        if (matrix.Rows != matrix.Cols)
+        this._A = A ?? throw new ArgumentNullException(nameof(A));
+        if (A.Rows != A.Cols)
             throw new InvalidOperationException("Matrix must be square for CG");
     }
 
     public void Relax(double[] b, double[] x, int maxIterations, double tolerance)
     {
-        if (b.Length != matrix.Rows || x.Length != matrix.Rows)
+        if (b.Length != _A.Rows || x.Length != _A.Rows)
             throw new ArgumentException("Vector length mismatch");
 
-        double[] r = new double[matrix.Rows];
-        double[] p = new double[matrix.Rows];
-        double[] Ap = new double[matrix.Rows];
+        double[] r = new double[_A.Rows];
+        double[] p = new double[_A.Rows];
+        double[] Ap = new double[_A.Rows];
 
-        matrix.Multiply(x, Ap); // Ap = Ax
-        for (int i = 0; i < matrix.Rows; i++)
+        _A.Multiply(x, Ap); // Ap = Ax
+        for (int i = 0; i < _A.Rows; i++)
         {
             r[i] = b[i] - Ap[i]; // r = b - Ax
             p[i] = r[i];         // initial p = r
@@ -32,9 +32,9 @@ public class ConjugateGradientSolver : ISolver
         double rsold = DotProduct(r, r);
         for (int iter = 0; iter < maxIterations; iter++)
         {
-            matrix.Multiply(p, Ap); // Ap = A*p
+            _A.Multiply(p, Ap); // Ap = A*p
             double alpha = rsold / DotProduct(p, Ap);
-            for (int i = 0; i < matrix.Rows; i++)
+            for (int i = 0; i < _A.Rows; i++)
             {
                 x[i] += alpha * p[i];
                 r[i] -= alpha * Ap[i];
@@ -44,7 +44,7 @@ public class ConjugateGradientSolver : ISolver
             if (Math.Sqrt(rsnew) < tolerance) break;
 
             double beta = rsnew / rsold;
-            for (int i = 0; i < matrix.Rows; i++)
+            for (int i = 0; i < _A.Rows; i++)
             {
                 p[i] = r[i] + beta * p[i];
             }
@@ -52,12 +52,10 @@ public class ConjugateGradientSolver : ISolver
         }
     }
 
+    // Solve: Initialize x and call Relax to compute solution
     public double[] Solve(double[] b, int maxIterations, double tolerance)
     {
-        if (b.Length != matrix.Rows)
-            throw new ArgumentException("Vector length must match matrix rows");
-
-        double[] x = new double[matrix.Rows];
+        double[] x = new double[b.Length];
         Relax(b, x, maxIterations, tolerance);
         return x;
     }

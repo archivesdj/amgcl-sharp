@@ -2,16 +2,17 @@ using Amgcl.Matrix;
 
 namespace Amgcl.Coarsening;
 
-public class VanillaAMGLevel : IAMGLevel
+public class AggregationAMGLevel : IAMGLevel
 {
     private readonly int _minGridSize;
+
     public SparseMatrixCSR A { get; private set; }
     public SparseMatrixCSR? R { get; private set; }
     public SparseMatrixCSR? P { get; private set; }
     public double[] Residual { get; private set; }
     public double[] Correction { get; private set; }
 
-    public VanillaAMGLevel(SparseMatrixCSR matrix, int minGridSize)
+    public AggregationAMGLevel(SparseMatrixCSR matrix, int minGridSize)
     {
         A = matrix;
         Residual = new double[matrix.Rows];
@@ -24,38 +25,38 @@ public class VanillaAMGLevel : IAMGLevel
         int coarseSize = ComputeCoarseSize();
         if (coarseSize < _minGridSize) return null; // Check minimum grid size
 
-        R = CreateRestrictionOperator(coarseSize);
-        P = CreateProlongationOperator(R);
+        P = CreateProlongationOperator(coarseSize);
+        R = CreateRestrictionOperator(P);
         SparseMatrixCSR A_c = ComputeCoarseMatrix();
         return CreateCoarseLevel(A_c);
     }
 
     private int ComputeCoarseSize()
     {
-        return A.Rows / 2; // 2:1 coarsening
+        return (A.Rows + 1) / 2; // 2:1 aggregation
     }
 
-    private SparseMatrixCSR CreateRestrictionOperator(int coarseSize)
+    private SparseMatrixCSR CreateProlongationOperator(int coarseSize)
     {
         int fineSize = A.Rows;
-        double[] rValues = new double[fineSize];
-        int[] rColIndices = new int[fineSize];
-        int[] rRowPointers = new int[coarseSize + 1];
-        for (int i = 0; i < coarseSize; i++)
+        var pValues = new List<double>();
+        var pColIndices = new List<int>();
+        var pRowPointers = new List<int> { 0 };
+
+        for (int i = 0; i < fineSize; i++)
         {
-            rRowPointers[i] = 2 * i;
-            rValues[2 * i] = 0.5;
-            rValues[2 * i + 1] = 0.5;
-            rColIndices[2 * i] = 2 * i;
-            rColIndices[2 * i + 1] = 2 * i + 1;
+            int aggregateIdx = i / 2;
+            pValues.Add(1.0);
+            pColIndices.Add(aggregateIdx);
+            pRowPointers.Add(pValues.Count);
         }
-        rRowPointers[coarseSize] = fineSize;
-        return new SparseMatrixCSR(coarseSize, fineSize, rValues, rColIndices, rRowPointers);
+
+        return new SparseMatrixCSR(fineSize, coarseSize, pValues.ToArray(), pColIndices.ToArray(), pRowPointers.ToArray());
     }
 
-    private SparseMatrixCSR CreateProlongationOperator(SparseMatrixCSR restriction)
+    private SparseMatrixCSR CreateRestrictionOperator(SparseMatrixCSR prolongation)
     {
-        return restriction.Transpose();
+        return prolongation.Transpose();
     }
 
     private SparseMatrixCSR ComputeCoarseMatrix()
@@ -66,7 +67,7 @@ public class VanillaAMGLevel : IAMGLevel
 
     private IAMGLevel CreateCoarseLevel(SparseMatrixCSR A_c)
     {
-        VanillaAMGLevel coarseLevel = new VanillaAMGLevel(A_c, _minGridSize);
+        AggregationAMGLevel coarseLevel = new AggregationAMGLevel(A_c, _minGridSize);
         return coarseLevel;
     }
 }

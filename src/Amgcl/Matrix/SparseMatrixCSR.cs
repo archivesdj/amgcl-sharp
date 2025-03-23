@@ -142,28 +142,20 @@ public class SparseMatrixCSR
     }
 
     // Matrix-vector multiplication
-    public void Multiply(double[] vector, double[] result)
+    public void Multiply(double[] x, double[] result)
     {
-        if (vector.Length != Cols)
-            throw new ArgumentException("Vector length must match matrix columns");
-        if (result.Length != Rows)
-            throw new ArgumentException("Result array length must match matrix rows");
+        if (x.Length != Cols || result.Length != Rows)
+            throw new ArgumentException("Vector length does not match matrix dimensions.");
 
         for (int i = 0; i < Rows; i++)
         {
-            double sum = 0;
-            int start = RowPointers[i];
-            int end = RowPointers[i + 1];
-            for (int j = start; j < end; j++)
-            {
-                sum += Values[j] * vector[ColIndices[j]];
-            }
-            result[i] = sum;
+            result[i] = 0;
+            for (int j = RowPointers[i]; j < RowPointers[i + 1]; j++)
+                result[i] += Values[j] * x[ColIndices[j]];
         }
     }
 
-    // Matrix-matrix multiplication (sparse format)
-    
+    // Matrix-matrix multiplication
     public SparseMatrixCSR MultiplyMatrix(SparseMatrixCSR right)
     {
         if (Cols != right.Rows)
@@ -203,7 +195,7 @@ public class SparseMatrixCSR
         return new SparseMatrixCSR(m, n, values.ToArray(), colIndices.ToArray(), rowPointers.ToArray());
     }
 
-    // Transpose a sparse matrix
+    // Transpose matrix
     public SparseMatrixCSR Transpose()
     {
         int nRowsTranspose = Cols;
@@ -214,10 +206,7 @@ public class SparseMatrixCSR
         for (int i = 0; i < Rows; i++)
         {
             for (int j = RowPointers[i]; j < RowPointers[i + 1]; j++)
-            {
-                int col = ColIndices[j];
-                rowCountsTranspose[col]++;
-            }
+                rowCountsTranspose[ColIndices[j]]++;
         }
 
         int[] rowPointersTranspose = new int[nRowsTranspose + 1];
@@ -243,6 +232,106 @@ public class SparseMatrixCSR
         }
 
         return new SparseMatrixCSR(nRowsTranspose, nColsTranspose, valuesTranspose, colIndicesTranspose, rowPointersTranspose);
+    }
+
+    // Compute D^-1 (inverse of diagonal matrix) as a sparse matrix
+    public SparseMatrixCSR ComputeDiagonalInverse()
+    {
+        int n = Rows;
+        var values = new double[n];
+        var colIndices = new int[n];
+        var rowPointers = new int[n + 1];
+
+        for (int i = 0; i < n; i++)
+        {
+            rowPointers[i] = i;
+            colIndices[i] = i;
+            double diag = 0;
+            for (int j = RowPointers[i]; j < RowPointers[i + 1]; j++)
+            {
+                if (ColIndices[j] == i)
+                {
+                    diag = Values[j];
+                    break;
+                }
+            }
+            values[i] = (diag != 0) ? 1.0 / diag : 0; // Handle zero diagonal
+        }
+        rowPointers[n] = n;
+
+        return new SparseMatrixCSR(n, n, values, colIndices, rowPointers);
+    }
+
+    // Create an identity matrix
+    public SparseMatrixCSR CreateIdentityMatrix()
+    {
+        int size = Rows;
+        var values = new double[size];
+        var colIndices = new int[size];
+        var rowPointers = new int[size + 1];
+
+        for (int i = 0; i < size; i++)
+        {
+            values[i] = 1.0;
+            colIndices[i] = i;
+            rowPointers[i] = i;
+        }
+        rowPointers[size] = size;
+
+        return new SparseMatrixCSR(size, size, values, colIndices, rowPointers);
+    }
+
+    // Scale a matrix by a scalar
+    public SparseMatrixCSR Scale(double scalar)
+    {
+        var values = new double[NonZeroCount];
+        Array.Copy(Values, values, values.Length);
+        for (int i = 0; i < values.Length; i++)
+            values[i] *= scalar;
+
+        return new SparseMatrixCSR(Rows, Cols, values, ColIndices, RowPointers);
+    }
+
+    // Subtract one matrix from another (no NonZeroCount constraint)
+    public SparseMatrixCSR Subtract(SparseMatrixCSR b)
+    {
+        if (Rows != b.Rows || Cols != b.Cols)
+            throw new ArgumentException("Matrices must have the same dimensions.");
+
+        var values = new List<double>();
+        var colIndices = new List<int>();
+        var rowPointers = new List<int> { 0 };
+        var tempRow = new Dictionary<int, double>();
+
+        for (int i = 0; i < Rows; i++)
+        {
+            tempRow.Clear();
+
+            // Add contributions from this matrix (A)
+            for (int j = RowPointers[i]; j < RowPointers[i + 1]; j++)
+            {
+                int col = ColIndices[j];
+                tempRow[col] = Values[j];
+            }
+
+            // Subtract contributions from b
+            for (int j = b.RowPointers[i]; j < b.RowPointers[i + 1]; j++)
+            {
+                int col = b.ColIndices[j];
+                tempRow.TryGetValue(col, out double current);
+                tempRow[col] = current - b.Values[j];
+            }
+
+            // Collect non-zero elements
+            foreach (var kvp in tempRow.Where(kvp => kvp.Value != 0))
+            {
+                values.Add(kvp.Value);
+                colIndices.Add(kvp.Key);
+            }
+            rowPointers.Add(values.Count);
+        }
+
+        return new SparseMatrixCSR(Rows, Cols, values.ToArray(), colIndices.ToArray(), rowPointers.ToArray());
     }
 
     // for testing
